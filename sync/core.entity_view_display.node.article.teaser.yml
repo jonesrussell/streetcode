@@ -1,0 +1,24 @@
+uuid: f3836a9a-6613-4660-b013-c7b6bc929fc1
+langcode: en
+status: true
+dependencies:
+  config:
+    - core.entity_view_mode.node.teaser
+    - field.field.node.article.field_group
+    - field.field.node.article.field_url
+    - node.type.article
+  module:
+    - user
+id: node.article.teaser
+targetEntityType: node
+bundle: article
+mode: teaser
+content:
+  links:
+    settings: {  }
+    third_party_settings: {  }
+    weight: 100
+    region: content
+hidden:
+  field_group: true
+  field_url: true
