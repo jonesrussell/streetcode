@@ -22,6 +22,8 @@
         "drupal/core-recommended": "^10.3",
         "drupal/group": "^3.2",
         "drupal/jsonapi_extras": "^3.25",
+        "drupal/pathauto": "^1.13",
+        "drupal/token": "^1.15",
         "drush/drush": "^13.0"
     },
     "conflict": {
