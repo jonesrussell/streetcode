@@ -17,6 +17,7 @@
     "require": {
         "composer/installers": "^2.3",
         "drupal/auto_entitylabel": "^3.2",
+        "drupal/composer_deploy": "^1.7",
         "drupal/core-composer-scaffold": "^10.3",
         "drupal/core-project-message": "^10.3",
         "drupal/core-recommended": "^10.3",
@@ -29,6 +30,7 @@
         "drupal/pathauto": "^1.13",
         "drupal/schemata": "^1.0@beta",
         "drupal/token": "^1.15",
+        "drupal/upgrade_status": "^4.3",
         "drush/drush": "^13.0",
         "mnsami/composer-custom-directory-installer": "^2.0"
     },
@@ -106,5 +108,8 @@
                 "      composer remove drupal/core-project-message"
             ]
         }
+    },
+    "require-dev": {
+        "palantirnet/drupal-rector": "^0.20.3"
     }
 }
