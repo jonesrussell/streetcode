@@ -21,6 +21,7 @@
         "drupal/core-composer-scaffold": "^10.3",
         "drupal/core-project-message": "^10.3",
         "drupal/core-recommended": "^10.3",
+        "drupal/embed": "^1.7",
         "drupal/group": "^3.2",
         "drupal/jsonapi_extras": "^3.25",
         "drupal/openapi": "^2.2",
@@ -30,7 +31,9 @@
         "drupal/pathauto": "^1.13",
         "drupal/schemata": "^1.0@beta",
         "drupal/token": "^1.15",
+        "drupal/twig_tweak": "^3.4",
         "drupal/upgrade_status": "^4.3",
+        "drupal/url_embed": "^2.0@alpha",
         "drush/drush": "^13.0",
         "mnsami/composer-custom-directory-installer": "^2.0"
     },
