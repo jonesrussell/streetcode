@@ -1,0 +1,12 @@
+uuid: ca9aa3a7-0e1e-4b6a-abfc-0df5cdf1e511
+langcode: en
+status: true
+dependencies:
+  module:
+    - url_embed
+label: 'Open Graph URL'
+id: social_open_graph
+type_id: url
+type_settings: {  }
+icon: {  }
+icon_uuid: 03f29711-0770-4e90-b330-099823d2098f

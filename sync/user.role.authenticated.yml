@@ -11,6 +11,7 @@ dependencies:
     - filter
     - search
     - shortcut
+    - social_open_graph
     - system
 _core:
   default_config_hash: cFrlqjtkTfvY3RGccjJkPf1SGIfJ942IrxTLWAO4mgA
@@ -24,6 +25,7 @@ permissions:
   - 'access shortcuts'
   - 'access site-wide contact form'
   - 'delete own files'
+  - 'generate social open graph content'
   - 'post comments'
   - 'search content'
   - 'skip comment approval'
