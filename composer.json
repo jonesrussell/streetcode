@@ -29,6 +29,8 @@
         "drupal/openapi_ui": "^1.0@RC",
         "drupal/openapi_ui_swagger": "^1.1",
         "drupal/pathauto": "^1.13",
+        "drupal/rest_api_authentication": "^2.0",
+        "drupal/restui": "^1.22",
         "drupal/schemata": "^1.0@beta",
         "drupal/token": "^1.15",
         "drupal/twig_tweak": "^3.4",
