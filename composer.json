@@ -24,6 +24,7 @@
         "drupal/embed": "^1.7",
         "drupal/group": "^3.2",
         "drupal/jsonapi_extras": "^3.25",
+        "drupal/mcp": "^1.0@alpha",
         "drupal/openapi": "^2.2",
         "drupal/openapi_jsonapi": "^3.0",
         "drupal/openapi_ui": "^1.0@RC",
@@ -36,6 +37,7 @@
         "drupal/twig_tweak": "^3.4",
         "drupal/upgrade_status": "^4.3",
         "drupal/url_embed": "^2.0@alpha",
+        "drupal/variationcache": "^1.5",
         "drush/drush": "^13.0",
         "mnsami/composer-custom-directory-installer": "^2.0"
     },
