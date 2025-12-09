@@ -36,9 +36,9 @@
         "drupal/token": "^1.15",
         "drupal/twig_tweak": "^3.4",
         "drupal/upgrade_status": "^4.3",
-        "drupal/url_embed": "^2.0@alpha",
+        "drupal/url_embed": "^3.0.0",
         "drupal/variationcache": "^1.5",
-        "drush/drush": "^13.0",
+        "drush/drush": "^13.7",
         "mnsami/composer-custom-directory-installer": "^2.0"
     },
     "conflict": {
@@ -49,12 +49,13 @@
     "config": {
         "allow-plugins": {
             "composer/installers": true,
+            "dealerdirect/phpcodesniffer-composer-installer": true,
             "drupal/core-composer-scaffold": true,
             "drupal/core-project-message": true,
-            "phpstan/extension-installer": true,
-            "dealerdirect/phpcodesniffer-composer-installer": true,
+            "mnsami/composer-custom-directory-installer": true,
             "php-http/discovery": true,
-            "mnsami/composer-custom-directory-installer": true
+            "phpstan/extension-installer": true,
+            "tbachert/spi": true
         },
         "sort-packages": true
     },
@@ -117,6 +118,7 @@
         }
     },
     "require-dev": {
+        "drupal/core-dev": "10.5.7",
         "palantirnet/drupal-rector": "^0.20.3"
     }
 }
