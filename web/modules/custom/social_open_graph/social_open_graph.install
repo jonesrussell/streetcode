@@ -118,6 +118,9 @@ function social_open_graph_uninstall() {
       $file->delete();
     }
   });
+
+  // Clear caches related to this module.
+  \Drupal::cache('data')->deleteAll();
 }
 
 /**

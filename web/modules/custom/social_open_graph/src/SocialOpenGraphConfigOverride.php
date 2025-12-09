@@ -9,7 +9,7 @@ use Drupal\Core\Config\StorageInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 
 /**
- * Configuration overrides for Social Embed module.
+ * Configuration overrides for Social Open Graph module.
  *
  * @package Drupal\social_open_graph
  */
@@ -48,15 +48,7 @@ class SocialOpenGraphConfigOverride implements ConfigFactoryOverrideInterface {
   public function loadOverrides($names) {
     $overrides = [];
 
-    // Early return if we're being asked to override core.extension itself
-    // to avoid circular dependencies.
-    if (in_array('core.extension', $names)) {
-      return $overrides;
-    }
-
-    // Check if the module is installed using module handler.
-    // This is safe and avoids circular dependencies with config factory.
-    // During uninstall, the module will no longer exist, so overrides won't apply.
+    // Check if the module exists.
     if (!$this->moduleHandler->moduleExists('social_open_graph')) {
       return $overrides;
     }
@@ -64,6 +56,52 @@ class SocialOpenGraphConfigOverride implements ConfigFactoryOverrideInterface {
     // Check if the filter plugin class exists. If it doesn't, we're likely
     // during uninstall and the class files may have been removed.
     if (!class_exists('Drupal\social_open_graph\Plugin\Filter\SocialOpenGraphUrlEmbedFilter')) {
+      return $overrides;
+    }
+
+    // Early return if we're being asked to override core.extension itself
+    // to avoid circular dependencies.
+    if (in_array('core.extension', $names)) {
+      return $overrides;
+    }
+
+    // Check if we're being called during uninstall by examining the call stack.
+    // If hook_module_preuninstall is in the stack, don't apply overrides.
+    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 30);
+    $uninstall_functions = [
+      'module_preuninstall',
+      'drupal_check_module',
+      'module_handler_uninstall',
+      'ExtensionUninstallValidatorInterface',
+    ];
+    foreach ($backtrace as $frame) {
+      if (isset($frame['function'])) {
+        foreach ($uninstall_functions as $uninstall_function) {
+          if (strpos($frame['function'], $uninstall_function) !== FALSE) {
+            return $overrides;
+          }
+        }
+      }
+      // Also check for validation classes that check filter usage.
+      if (isset($frame['class'])) {
+        $class = is_string($frame['class']) ? $frame['class'] : get_class($frame['class']);
+        if (strpos($class, 'Uninstall') !== FALSE || strpos($class, 'Validator') !== FALSE) {
+          return $overrides;
+        }
+      }
+    }
+
+    // Check if the module is marked for uninstall by checking the extension list.
+    try {
+      $extension_config = $this->configFactory->get('core.extension');
+      $modules = $extension_config->get('module') ?: [];
+      // If the module is not in the enabled modules list, we're likely uninstalling.
+      if (!isset($modules['social_open_graph'])) {
+        return $overrides;
+      }
+    }
+    catch (\Exception $e) {
+      // If we can't check, err on the side of caution and don't apply overrides.
       return $overrides;
     }
 

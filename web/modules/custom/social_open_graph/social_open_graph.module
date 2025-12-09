@@ -61,10 +61,72 @@ function _social_open_graph_create_media_button(): void {
 
 /**
  * Implements hook_module_preuninstall().
+ *
+ * Remove our filters from all filter formats BEFORE validation runs.
+ * This is necessary because filters are added via config overrides, and during
+ * uninstall validation, the overrides are still active.
  */
 function social_open_graph_module_preuninstall($module) {
-  // No cleanup needed here. Filters are added via config overrides, not stored
-  // config. When the module is uninstalled, the config override service will
-  // stop applying overrides (via moduleExists() check), and filters will
-  // automatically disappear from filter formats.
+  if ($module === 'social_open_graph') {
+    // Remove our filter plugins from filter format configs.
+    // We need to do this explicitly because config overrides are still active
+    // during the validation phase.
+    $filter_ids = [
+      'social_open_graph_url_embed',
+      'social_open_graph_convert_url',
+    ];
+
+    /** @var \Drupal\filter\FilterFormatStorageInterface $storage */
+    $storage = \Drupal::entityTypeManager()->getStorage('filter_format');
+    $filter_formats = $storage->loadMultiple();
+
+    // Get config storage to modify stored config directly (bypassing overrides).
+    $config_storage = \Drupal::service('config.storage');
+
+    foreach ($filter_formats as $format) {
+      $modified = FALSE;
+      $format_id = $format->id();
+      $config_name = 'filter.format.' . $format_id;
+
+      // Remove from the entity.
+      $filters = $format->get('filters');
+      foreach ($filter_ids as $filter_id) {
+        if (isset($filters[$filter_id])) {
+          $format->removeFilter($filter_id);
+          $modified = TRUE;
+        }
+      }
+
+      // Also modify the stored config directly to ensure it's removed from storage.
+      if ($modified) {
+        $stored_config = $config_storage->read($config_name);
+        if ($stored_config && isset($stored_config['filters'])) {
+          foreach ($filter_ids as $filter_id) {
+            if (isset($stored_config['filters'][$filter_id])) {
+              unset($stored_config['filters'][$filter_id]);
+            }
+          }
+
+          // Clean up filter_html allowed tags.
+          if (isset($stored_config['filters']['filter_html']['settings']['allowed_html'])) {
+            $allowed_html = $stored_config['filters']['filter_html']['settings']['allowed_html'];
+            $allowed_html = preg_replace('/\s*<drupal-url\s+data-\*>/', '', $allowed_html);
+            $stored_config['filters']['filter_html']['settings']['allowed_html'] = trim($allowed_html);
+          }
+
+          // Write the modified config back to storage.
+          $config_storage->write($config_name, $stored_config);
+        }
+
+        // Save the entity (this also persists to storage).
+        $format->save();
+      }
+    }
+
+    // Clear all caches to ensure validators see the cleaned config.
+    \Drupal::service('cache.config')->deleteAll();
+    \Drupal::service('cache.discovery')->deleteAll();
+    \Drupal::service('cache.bootstrap')->deleteAll();
+    drupal_static_reset();
+  }
 }
