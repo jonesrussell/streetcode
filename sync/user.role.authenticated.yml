@@ -11,6 +11,7 @@ dependencies:
     - filter
     - search
     - shortcut
+    - social_open_graph
     - system
 _core:
   default_config_hash: cFrlqjtkTfvY3RGccjJkPf1SGIfJ942IrxTLWAO4mgA
