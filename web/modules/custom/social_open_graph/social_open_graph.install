@@ -32,3 +32,27 @@ function social_open_graph_install() {
     ]
   );
 }
+
+/**
+ * Implements hook_uninstall().
+ */
+function social_open_graph_uninstall() {
+  // Delete the embed button.
+  $button = \Drupal::entityTypeManager()
+    ->getStorage('embed_button')
+    ->load('social_open_graph');
+  if ($button) {
+    $button->delete();
+  }
+
+  // Delete the icon file.
+  $files = \Drupal::entityTypeManager()
+    ->getStorage('file')
+    ->loadByProperties(['uri' => 'public://kiwi.svg']);
+  foreach ($files as $file) {
+    $file->delete();
+  }
+
+  // Clear caches related to this module.
+  \Drupal::cache('data')->deleteAll();
+}

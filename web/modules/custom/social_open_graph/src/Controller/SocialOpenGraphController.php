@@ -90,9 +90,9 @@ class SocialOpenGraphController extends ControllerBase {
     // Get unique identifier for the button which was clicked.
     $uuid = $request->query->get('uuid');
 
-    // If $url or $uuid is not present, then request is malformed.
-    if ($url === NULL && Uuid::isValid($uuid) !== FALSE) {
-      throw new NotFoundHttpException();
+    // Validate that both required parameters are present and valid.
+    if ($url === NULL || $uuid === NULL || !Uuid::isValid($uuid)) {
+      throw new NotFoundHttpException('Invalid or missing URL/UUID parameters.');
     }
 
     // The maximum number of times each user can do this event per time window.

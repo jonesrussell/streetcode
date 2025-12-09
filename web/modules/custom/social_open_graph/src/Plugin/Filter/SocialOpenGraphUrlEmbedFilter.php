@@ -5,7 +5,9 @@ namespace Drupal\social_open_graph\Plugin\Filter;
 use Drupal\file\Entity\File;
 use Drupal\Component\Utility\Html;
 use Drupal\Component\Uuid\UuidInterface;
-use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Render\Renderer;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\filter\FilterProcessResult;
@@ -36,9 +38,9 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
   /**
    * The config factory services.
    *
-   * @var \Drupal\Core\Config\ConfigFactory
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
-  protected ConfigFactory $configFactory;
+  protected ConfigFactoryInterface $configFactory;
 
   /**
    * The social embed helper services.
@@ -59,7 +61,28 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
    *
    * @var \Drupal\Core\Render\Renderer
    */
-  protected Renderer $renderer;
+  protected $renderer;
+
+  /**
+   * The entity type manager.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
+  protected EntityTypeManagerInterface $entityTypeManager;
+
+  /**
+   * The file system service.
+   *
+   * @var \Drupal\Core\File\FileSystemInterface
+   */
+  protected FileSystemInterface $fileSystem;
+
+  /**
+   * The URL embed service.
+   *
+   * @var \Drupal\url_embed\UrlEmbedInterface
+   */
+  protected UrlEmbedInterface $urlEmbed;
 
   /**
    * Constructs a SocialOpenGraphUrlEmbedFilter object.
@@ -74,7 +97,7 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
    *   The URL embed service.
    * @param \Drupal\Component\Uuid\UuidInterface $uuid
    *   The uuid services.
-   * @param \Drupal\Core\Config\ConfigFactory $config_factory
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The config factory services.
    * @param \Drupal\Core\Render\Renderer $renderer
    *   The renderer services.
@@ -82,6 +105,10 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
    *   The social embed helper class object.
    * @param \Drupal\Core\Session\AccountProxyInterface $current_user
    *   Current user object.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   *   The entity type manager.
+   * @param \Drupal\Core\File\FileSystemInterface $file_system
+   *   The file system service.
    */
   public function __construct(
     array $configuration,
@@ -89,10 +116,12 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
     $plugin_definition,
     UrlEmbedInterface $url_embed,
     UuidInterface $uuid,
-    ConfigFactory $config_factory,
+    ConfigFactoryInterface $config_factory,
     Renderer $renderer,
     SocialOpenGraphHelper $embed_helper,
-    AccountProxyInterface $current_user
+    AccountProxyInterface $current_user,
+    EntityTypeManagerInterface $entity_type_manager,
+    FileSystemInterface $file_system
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $url_embed);
     $this->uuid = $uuid;
@@ -100,6 +129,9 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
     $this->renderer = $renderer;
     $this->embedHelper = $embed_helper;
     $this->currentUser = $current_user;
+    $this->entityTypeManager = $entity_type_manager;
+    $this->fileSystem = $file_system;
+    $this->urlEmbed = $url_embed;
   }
 
   /**
@@ -116,6 +148,8 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
       $container->get('renderer'),
       $container->get('social_open_graph.helper_service'),
       $container->get('current_user'),
+      $container->get('entity_type.manager'),
+      $container->get('file_system')
     );
   }
 
@@ -130,67 +164,118 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
       $xpath = new \DOMXPath($dom);
       /** @var \DOMNode[] $matching_nodes */
       $matching_nodes = $xpath->query('//drupal-url[@data-embed-url]');
+
+      if ($matching_nodes->length === 0) {
+        return $result;
+      }
+
+      // Collect all URLs first to optimize database queries.
+      $urls_to_process = [];
       foreach ($matching_nodes as $node) {
         /** @var \DOMElement $node */
         $url = $node->getAttribute('data-embed-url');
+        if ($url) {
+          $urls_to_process[] = $url;
+        }
+      }
 
-        // Has this link been posted before?
-        $query = \Drupal::entityQuery('social_open_graph_url')
-          ->condition('url.value', $url);
-        $nids = $query->execute();
+      // Load all existing entities at once to avoid N+1 query problem.
+      $storage = $this->entityTypeManager->getStorage('social_open_graph_url');
+      $existing_entities = $storage->loadByProperties(['url' => $urls_to_process]);
+
+      // Create lookup array for quick access.
+      $entity_lookup = [];
+      foreach ($existing_entities as $entity) {
+        $entity_lookup[$entity->get('url')->value] = $entity;
+      }
+
+      // Process each node.
+      foreach ($matching_nodes as $node) {
+        /** @var \DOMElement $node */
+        $url = $node->getAttribute('data-embed-url');
+        if (!$url) {
+          continue;
+        }
 
         $providerName = NULL;
         $title = NULL;
         $description = NULL;
         $file = NULL;
 
-        if (!empty($nids)) {
-          $id = array_pop($nids);
-          $info = \Drupal::entityTypeManager()
-            ->getStorage('social_open_graph_url')
-            ->load($id)
-            ->toArray();
+        // Check if entity already exists.
+        if (isset($entity_lookup[$url])) {
+          $entity = $entity_lookup[$url];
+          $info = $entity->toArray();
 
-          $providerName = $info['provider_name'][0]['value'];
-          $title = $info['title'][0]['value'];
-          $providerName = $info['provider_name'][0]['value'];
-          $description = $info['description'][0]['value'];
-          $file = File::load($info['image'][0]['target_id']);
+          $providerName = $info['provider_name'][0]['value'] ?? NULL;
+          $title = $info['title'][0]['value'] ?? NULL;
+          $description = $info['description'][0]['value'] ?? NULL;
+          if (!empty($info['image'][0]['target_id'])) {
+            $file = File::load($info['image'][0]['target_id']);
+          }
         }
         else {
           // Create new Open Graph entity.
-          $info = $this->urlEmbed->getUrlInfo($url);
+          try {
+            $info = $this->urlEmbed->getUrlInfo($url);
+            if (!$info) {
+              \Drupal::logger('social_open_graph')->warning('Failed to get URL info for @url', ['@url' => $url]);
+              continue;
+            }
 
-          $data = file_get_contents($info['image']);
-          $filename = 'public://' . uniqid() . basename($info['image']);
+            // Validate image URL exists.
+            if (empty($info['image'])) {
+              \Drupal::logger('social_open_graph')->warning('No image URL found for @url', ['@url' => $url]);
+              continue;
+            }
 
-          // Clean filename.
-          $path = explode("?", $filename);
-          $filename = $path[0];
+            // Download with error handling.
+            $image_data = @file_get_contents($info['image']);
+            if ($image_data === FALSE) {
+              \Drupal::logger('social_open_graph')->warning('Failed to download image from @image_url', ['@image_url' => $info['image']]);
+              continue;
+            }
 
-          $path = explode("%", $filename);
-          $filename = $path[0];
+            // Sanitize filename properly.
+            $parsed_url = parse_url($info['image']);
+            $original_filename = basename($parsed_url['path'] ?? 'image.jpg');
+            $safe_filename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $original_filename);
+            $destination = 'public://social_open_graph_' . uniqid() . '_' . $safe_filename;
 
-          $file = file_save_data($data, $filename);
+            // Save file using file_save_data (compatible with Drupal 10.4).
+            $file = file_save_data($image_data, $destination, FileSystemInterface::EXISTS_RENAME);
 
-          $title = $info['title'];
-          $providerName = $info['providerName'];
-          $description = $info['description'];
+            if (!$file) {
+              \Drupal::logger('social_open_graph')->error('Failed to save image file for @url', ['@url' => $url]);
+              continue;
+            }
 
-          $urlOpenGraph = \Drupal::entityTypeManager()
-            ->getStorage('social_open_graph_url')
-            ->create([
+            $title = $info['title'] ?? NULL;
+            $providerName = $info['providerName'] ?? NULL;
+            $description = $info['description'] ?? NULL;
+
+            $urlOpenGraph = $storage->create([
               'url' => $url,
               'title' => $title,
               'image' => [
                 'target_id' => $file->id(),
-                'alt'       => 'Article image',
+                'alt' => 'Article image',
               ],
               'provider_name' => $providerName,
               'description' => $description,
             ]);
 
-          $urlOpenGraph->save();
+            $urlOpenGraph->save();
+          }
+          catch (\Exception $e) {
+            \Drupal::logger('social_open_graph')->error('Error processing image: @message', ['@message' => $e->getMessage()]);
+            continue;
+          }
+        }
+
+        // Skip if we don't have a file to render.
+        if (!$file) {
+          continue;
         }
 
         // Render Open Graph entity.

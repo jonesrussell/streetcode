@@ -75,7 +75,7 @@ class UrlEmbed implements UrlEmbedInterface {
    *
    * @{inheritdoc}
    */
-  public function getConfig() {
+  public function getConfig(): array {
     return $this->config;
   }
 
@@ -84,7 +84,7 @@ class UrlEmbed implements UrlEmbedInterface {
    *
    * @{inheritdoc}
    */
-  public function setConfig(array $config) {
+  public function setConfig(array $config): void {
     $this->config = $config;
   }
 
@@ -104,7 +104,7 @@ class UrlEmbed implements UrlEmbedInterface {
    *
    * @{inheritdoc}
    */
-  public function getUrlInfo($url) {
+  public function getUrlInfo(string $url): array {
     $data = [];
     $keys = [
       'aspectRatio',

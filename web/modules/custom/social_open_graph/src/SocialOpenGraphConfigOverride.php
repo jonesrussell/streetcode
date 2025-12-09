@@ -47,6 +47,25 @@ class SocialOpenGraphConfigOverride implements ConfigFactoryOverrideInterface {
    */
   public function loadOverrides($names) {
     $overrides = [];
+
+    // Early return if we're being asked to override core.extension itself
+    // to avoid circular dependencies.
+    if (in_array('core.extension', $names)) {
+      return $overrides;
+    }
+
+    // Check if the module is installed using module handler.
+    // This is safe and avoids circular dependencies with config factory.
+    if (!$this->moduleHandler->moduleExists('social_open_graph')) {
+      return $overrides;
+    }
+
+    // Check if the filter plugin class exists. If it doesn't, we're likely
+    // during uninstall and the class files may have been removed.
+    if (!class_exists('Drupal\social_open_graph\Plugin\Filter\SocialOpenGraphUrlEmbedFilter')) {
+      return $overrides;
+    }
+
     $found = FALSE;
 
     foreach ($names as $name) {

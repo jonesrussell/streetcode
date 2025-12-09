@@ -238,7 +238,12 @@ class OpengraphResource extends ResourceBase implements DependentPluginInterface
    * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
    */
   protected function loadRecord($id) {
-    $record = $this->dbConnection->query('SELECT * FROM {social_open_graph_opengraph} WHERE id = :id', [':id' => $id])->fetchAssoc();
+    $record = $this->dbConnection->select('social_open_graph_opengraph', 'sog')
+      ->fields('sog')
+      ->condition('id', $id)
+      ->execute()
+      ->fetchAssoc();
+
     if (!$record) {
       throw new NotFoundHttpException('The record was not found.');
     }
