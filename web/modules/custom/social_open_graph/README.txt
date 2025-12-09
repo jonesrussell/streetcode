@@ -10,8 +10,7 @@ plugins to embed URLs with Open Graph content in text formats.
 
 REQUIREMENTS
 ------------
-- Drupal 10.4 or higher
-- Drupal 11 (compatible)
+- Drupal 11
 - embed module
 - url_embed module
 - twig_tweak module

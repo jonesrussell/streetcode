@@ -242,7 +242,7 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
             $safe_filename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $original_filename);
             $destination = 'public://social_open_graph_' . uniqid() . '_' . $safe_filename;
 
-            // Save file using file_save_data (compatible with Drupal 10.4).
+            // Save file using file_save_data.
             $file = file_save_data($image_data, $destination, FileSystemInterface::EXISTS_RENAME);
 
             if (!$file) {
