@@ -43,6 +43,7 @@ module:
   search: 0
   serialization: 0
   shortcut: 0
+  social_open_graph: 0
   system: 0
   taxonomy: 0
   text: 0
@@ -51,6 +52,7 @@ module:
   twig_tweak: 0
   update: 0
   upgrade_status: 0
+  url_embed: 0
   user: 0
   views_ui: 0
   pathauto: 1
