@@ -90,9 +90,6 @@ function social_open_graph_install() {
  * Implements hook_uninstall().
  */
 function social_open_graph_uninstall() {
-  // Set state flag to indicate uninstall is in progress.
-  \Drupal::state()->set('social_open_graph.uninstalling', TRUE);
-
   // Delete all URL Open Graph entities before uninstalling.
   _social_open_graph_safe_entity_operation(function() {
     $storage = \Drupal::entityTypeManager()->getStorage('social_open_graph_url');
@@ -121,12 +118,6 @@ function social_open_graph_uninstall() {
       $file->delete();
     }
   });
-
-  // Clear caches related to this module.
-  \Drupal::cache('data')->deleteAll();
-
-  // Clear the uninstall flag.
-  \Drupal::state()->delete('social_open_graph.uninstalling');
 }
 
 /**

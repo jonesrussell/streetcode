@@ -7,7 +7,6 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ConfigFactoryOverrideInterface;
 use Drupal\Core\Config\StorageInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\Core\State\StateInterface;
 
 /**
  * Configuration overrides for Social Embed module.
@@ -31,26 +30,16 @@ class SocialOpenGraphConfigOverride implements ConfigFactoryOverrideInterface {
   protected $configFactory;
 
   /**
-   * The state service.
-   *
-   * @var \Drupal\Core\State\StateInterface
-   */
-  protected StateInterface $state;
-
-  /**
    * Constructs the configuration override.
    *
    * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
    *   The module handler.
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The configuration factory.
-   * @param \Drupal\Core\State\StateInterface $state
-   *   The state service.
    */
-  public function __construct(ModuleHandlerInterface $module_handler, ConfigFactoryInterface $config_factory, StateInterface $state) {
+  public function __construct(ModuleHandlerInterface $module_handler, ConfigFactoryInterface $config_factory) {
     $this->moduleHandler = $module_handler;
     $this->configFactory = $config_factory;
-    $this->state = $state;
   }
 
   /**
@@ -67,12 +56,8 @@ class SocialOpenGraphConfigOverride implements ConfigFactoryOverrideInterface {
 
     // Check if the module is installed using module handler.
     // This is safe and avoids circular dependencies with config factory.
+    // During uninstall, the module will no longer exist, so overrides won't apply.
     if (!$this->moduleHandler->moduleExists('social_open_graph')) {
-      return $overrides;
-    }
-
-    // Check if we're in an uninstall context using state flag.
-    if ($this->state->get('social_open_graph.uninstalling', FALSE)) {
       return $overrides;
     }
 

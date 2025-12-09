@@ -58,3 +58,13 @@ function _social_open_graph_create_media_button(): void {
   ]);
   $button->save();
 }
+
+/**
+ * Implements hook_module_preuninstall().
+ */
+function social_open_graph_module_preuninstall($module) {
+  // No cleanup needed here. Filters are added via config overrides, not stored
+  // config. When the module is uninstalled, the config override service will
+  // stop applying overrides (via moduleExists() check), and filters will
+  // automatically disappear from filter formats.
+}

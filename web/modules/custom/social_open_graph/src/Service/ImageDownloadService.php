@@ -3,6 +3,7 @@
 namespace Drupal\social_open_graph\Service;
 
 use Drupal\Core\File\FileSystemInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\social_open_graph\SocialOpenGraphConstants;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
@@ -39,15 +40,15 @@ class ImageDownloadService {
    *
    * @param \GuzzleHttp\ClientInterface $http_client
    *   The HTTP client.
+   * @param \Drupal\Core\Logger\LoggerChannelFactoryInterface $logger_factory
+   *   The logger factory service.
    * @param \Drupal\Core\File\FileSystemInterface $file_system
    *   The file system service.
-   * @param \Psr\Log\LoggerInterface $logger
-   *   The logger service.
    */
-  public function __construct(ClientInterface $http_client, FileSystemInterface $file_system, LoggerInterface $logger) {
+  public function __construct(ClientInterface $http_client, LoggerChannelFactoryInterface $logger_factory, FileSystemInterface $file_system) {
     $this->httpClient = $http_client;
+    $this->logger = $logger_factory->get('social_open_graph');
     $this->fileSystem = $file_system;
-    $this->logger = $logger;
   }
 
   /**
