@@ -82,7 +82,7 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
    *
    * @var \Drupal\url_embed\UrlEmbedInterface
    */
-  protected UrlEmbedInterface $urlEmbed;
+  protected $urlEmbed;
 
   /**
    * Constructs a SocialOpenGraphUrlEmbedFilter object.
