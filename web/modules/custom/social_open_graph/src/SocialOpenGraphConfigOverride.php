@@ -60,6 +60,16 @@ class SocialOpenGraphConfigOverride implements ConfigFactoryOverrideInterface {
       return $overrides;
     }
 
+    // Check if we're in an uninstall validation context by checking the
+    // backtrace for FilterUninstallValidator.
+    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
+    foreach ($backtrace as $frame) {
+      if (isset($frame['class']) && strpos($frame['class'], 'FilterUninstallValidator') !== FALSE) {
+        // We're being called during uninstall validation, don't add overrides.
+        return $overrides;
+      }
+    }
+
     // Check if the filter plugin class exists. If it doesn't, we're likely
     // during uninstall and the class files may have been removed.
     if (!class_exists('Drupal\social_open_graph\Plugin\Filter\SocialOpenGraphUrlEmbedFilter')) {

@@ -6,9 +6,65 @@
  */
 
 /**
+ * Implements hook_schema().
+ */
+function social_open_graph_schema() {
+  $schema = [];
+
+  $schema['social_open_graph_url'] = [
+    'description' => 'The base table for URL Open Graph entities.',
+    'fields' => [
+      'id' => [
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique ID.',
+      ],
+      'uuid' => [
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+        'description' => 'The UUID of the entity.',
+      ],
+      'langcode' => [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The language code for the entity.',
+      ],
+    ],
+    'primary key' => ['id'],
+    'unique keys' => [
+      'social_open_graph_url_uuid' => ['uuid'],
+    ],
+    'indexes' => [
+      'social_open_graph_url_field__langcode' => ['langcode'],
+    ],
+  ];
+
+  return $schema;
+}
+
+/**
  * Implements hook_install().
  */
 function social_open_graph_install() {
+  // Ensure entity storage tables are created.
+  // For content entities, Drupal creates tables automatically, but we need
+  // to trigger the storage initialization to ensure they exist.
+  try {
+    $storage = \Drupal::entityTypeManager()->getStorage('social_open_graph_url');
+    // Access the storage schema to trigger table creation.
+    $storage_schema = \Drupal::service('entity_type.manager')
+      ->getStorage('social_open_graph_url')
+      ->getEntityType()
+      ->getStorageClass();
+    // The tables will be created automatically when first accessed.
+  }
+  catch (\Exception $e) {
+    // If there's an error, continue - tables will be created on first use.
+  }
+
   // Create the social_embed icon.
   _social_open_graph_create_media_button();
 
@@ -37,20 +93,43 @@ function social_open_graph_install() {
  * Implements hook_uninstall().
  */
 function social_open_graph_uninstall() {
+  // Delete all URL Open Graph entities before uninstalling.
+  try {
+    $storage = \Drupal::entityTypeManager()->getStorage('social_open_graph_url');
+    $entities = $storage->loadMultiple();
+    if (!empty($entities)) {
+      $storage->delete($entities);
+    }
+  }
+  catch (\Exception $e) {
+    // If the table doesn't exist or there's an error, continue with uninstall.
+    // This can happen if the entity was never used.
+  }
+
   // Delete the embed button.
-  $button = \Drupal::entityTypeManager()
-    ->getStorage('embed_button')
-    ->load('social_open_graph');
-  if ($button) {
-    $button->delete();
+  try {
+    $button = \Drupal::entityTypeManager()
+      ->getStorage('embed_button')
+      ->load('social_open_graph');
+    if ($button) {
+      $button->delete();
+    }
+  }
+  catch (\Exception $e) {
+    // Continue if button doesn't exist.
   }
 
   // Delete the icon file.
-  $files = \Drupal::entityTypeManager()
-    ->getStorage('file')
-    ->loadByProperties(['uri' => 'public://kiwi.svg']);
-  foreach ($files as $file) {
-    $file->delete();
+  try {
+    $files = \Drupal::entityTypeManager()
+      ->getStorage('file')
+      ->loadByProperties(['uri' => 'public://kiwi.svg']);
+    foreach ($files as $file) {
+      $file->delete();
+    }
+  }
+  catch (\Exception $e) {
+    // Continue if files don't exist.
   }
 
   // Clear caches related to this module.

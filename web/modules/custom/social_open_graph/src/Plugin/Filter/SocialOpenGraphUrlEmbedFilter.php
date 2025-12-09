@@ -123,7 +123,7 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
     EntityTypeManagerInterface $entity_type_manager,
     FileSystemInterface $file_system
   ) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition, $url_embed);
+    parent::__construct($configuration, $plugin_id, $plugin_definition, $url_embed, $renderer);
     $this->uuid = $uuid;
     $this->configFactory = $config_factory;
     $this->renderer = $renderer;

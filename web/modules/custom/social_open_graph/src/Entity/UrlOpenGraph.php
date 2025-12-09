@@ -19,6 +19,23 @@ use Drupal\Core\Entity\ContentEntityInterface;
  *   entity_keys = {
  *     "id" = "id",
  *     "uuid" = "uuid",
+ *     "langcode" = "langcode",
+ *   },
+ *   handlers = {
+ *     "storage" = "Drupal\Core\Entity\Sql\SqlContentEntityStorage",
+ *     "view_builder" = "Drupal\Core\Entity\EntityViewBuilder",
+ *     "list_builder" = "Drupal\Core\Entity\EntityListBuilder",
+ *     "form" = {
+ *       "default" = "Drupal\Core\Entity\ContentEntityForm",
+ *     },
+ *     "route_provider" = {
+ *       "html" = "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider",
+ *     },
+ *   },
+ *   admin_permission = "administer social open graph settings",
+ *   links = {
+ *     "canonical" = "/social-open-graph-url/{social_open_graph_url}",
+ *     "collection" = "/admin/content/social-open-graph-url",
  *   },
  * )
  */
@@ -40,6 +57,19 @@ class UrlOpenGraph extends ContentEntityBase implements ContentEntityInterface {
       ->setLabel(t('UUID'))
       ->setDescription(t('The UUID of the URL Open Graph entity.'))
       ->setReadOnly(TRUE);
+
+    // Language field.
+    $fields['langcode'] = BaseFieldDefinition::create('language')
+      ->setLabel(t('Language'))
+      ->setDescription(t('The language code for the entity.'))
+      ->setDisplayOptions('view', [
+        'type' => 'language',
+        'weight' => 0,
+      ])
+      ->setDisplayOptions('form', [
+        'type' => 'language_select',
+        'weight' => 0,
+      ]);
 
     $fields['url'] = BaseFieldDefinition::create('uri')
       ->setLabel(t('URL'))
