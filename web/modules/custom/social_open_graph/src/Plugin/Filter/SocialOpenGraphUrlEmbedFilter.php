@@ -11,7 +11,9 @@ use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Render\Renderer;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\filter\FilterProcessResult;
+use Drupal\social_open_graph\Service\ImageDownloadService;
 use Drupal\social_open_graph\Service\SocialOpenGraphHelper;
+use Drupal\social_open_graph\SocialOpenGraphConstants;
 use Drupal\url_embed\Plugin\Filter\UrlEmbedFilter;
 use Drupal\url_embed\UrlEmbedInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -85,6 +87,13 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
   protected $urlEmbed;
 
   /**
+   * The image download service.
+   *
+   * @var \Drupal\social_open_graph\Service\ImageDownloadService
+   */
+  protected ImageDownloadService $imageDownloadService;
+
+  /**
    * Constructs a SocialOpenGraphUrlEmbedFilter object.
    *
    * @param array $configuration
@@ -109,6 +118,8 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
    *   The entity type manager.
    * @param \Drupal\Core\File\FileSystemInterface $file_system
    *   The file system service.
+   * @param \Drupal\social_open_graph\Service\ImageDownloadService $image_download_service
+   *   The image download service.
    */
   public function __construct(
     array $configuration,
@@ -121,7 +132,8 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
     SocialOpenGraphHelper $embed_helper,
     AccountProxyInterface $current_user,
     EntityTypeManagerInterface $entity_type_manager,
-    FileSystemInterface $file_system
+    FileSystemInterface $file_system,
+    ImageDownloadService $image_download_service
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $url_embed, $renderer);
     $this->uuid = $uuid;
@@ -132,6 +144,7 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
     $this->entityTypeManager = $entity_type_manager;
     $this->fileSystem = $file_system;
     $this->urlEmbed = $url_embed;
+    $this->imageDownloadService = $image_download_service;
   }
 
   /**
@@ -149,7 +162,8 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
       $container->get('social_open_graph.helper_service'),
       $container->get('current_user'),
       $container->get('entity_type.manager'),
-      $container->get('file_system')
+      $container->get('file_system'),
+      $container->get('social_open_graph.image_download_service')
     );
   }
 
@@ -158,12 +172,12 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
    */
   public function process($text, $langcode) {
     $result = new FilterProcessResult($text);
-    if (strpos($text, 'data-embed-url') !== FALSE) {
+    if (strpos($text, SocialOpenGraphConstants::EMBED_ATTRIBUTE) !== FALSE) {
       $dom = Html::load($text);
       /** @var \DOMXPath $xpath */
       $xpath = new \DOMXPath($dom);
       /** @var \DOMNode[] $matching_nodes */
-      $matching_nodes = $xpath->query('//drupal-url[@data-embed-url]');
+      $matching_nodes = $xpath->query('//' . SocialOpenGraphConstants::EMBED_TAG . '[@' . SocialOpenGraphConstants::EMBED_ATTRIBUTE . ']');
 
       if ($matching_nodes->length === 0) {
         return $result;
@@ -183,16 +197,24 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
       $storage = $this->entityTypeManager->getStorage('social_open_graph_url');
       $existing_entities = $storage->loadByProperties(['url' => $urls_to_process]);
 
-      // Create lookup array for quick access.
+      // Create lookup array for quick access and collect file IDs.
       $entity_lookup = [];
+      $file_ids = [];
       foreach ($existing_entities as $entity) {
         $entity_lookup[$entity->get('url')->value] = $entity;
+        $info = $entity->toArray();
+        if (!empty($info['image'][0]['target_id'])) {
+          $file_ids[] = $info['image'][0]['target_id'];
+        }
       }
+
+      // Batch load all files at once to avoid N+1 query problem.
+      $files = !empty($file_ids) ? File::loadMultiple($file_ids) : [];
 
       // Process each node.
       foreach ($matching_nodes as $node) {
         /** @var \DOMElement $node */
-        $url = $node->getAttribute('data-embed-url');
+        $url = $node->getAttribute(SocialOpenGraphConstants::EMBED_ATTRIBUTE);
         if (!$url) {
           continue;
         }
@@ -211,7 +233,7 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
           $title = $info['title'][0]['value'] ?? NULL;
           $description = $info['description'][0]['value'] ?? NULL;
           if (!empty($info['image'][0]['target_id'])) {
-            $file = File::load($info['image'][0]['target_id']);
+            $file = $files[$info['image'][0]['target_id']] ?? NULL;
           }
         }
         else {
@@ -229,10 +251,10 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
               continue;
             }
 
-            // Download with error handling.
-            $image_data = @file_get_contents($info['image']);
-            if ($image_data === FALSE) {
-              \Drupal::logger('social_open_graph')->warning('Failed to download image from @image_url', ['@image_url' => $info['image']]);
+            // Download and validate image.
+            $image_data = $this->imageDownloadService->downloadAndValidateImage($info['image']);
+            if ($image_data === NULL) {
+              \Drupal::logger('social_open_graph')->warning('Failed to download or validate image from @image_url', ['@image_url' => $info['image']]);
               continue;
             }
 
@@ -295,7 +317,22 @@ class SocialOpenGraphUrlEmbedFilter extends UrlEmbedFilter {
       $result->setProcessedText(Html::serialize($dom));
     }
     // Add the required dependencies and cache tags.
-    return $this->embedHelper->addDependencies($result, 'social_open_graph:filter.url_embed');
+    return $this->addFilterDependencies($result, 'social_open_graph:filter.url_embed');
+  }
+
+  /**
+   * Adds filter dependencies to the result.
+   *
+   * @param \Drupal\filter\FilterProcessResult $result
+   *   The filter process result.
+   * @param string $tag
+   *   The cache tag to add.
+   *
+   * @return \Drupal\filter\FilterProcessResult
+   *   The filter process result with dependencies added.
+   */
+  protected function addFilterDependencies(FilterProcessResult $result, string $tag): FilterProcessResult {
+    return $this->embedHelper->addDependencies($result, $tag);
   }
 
 }

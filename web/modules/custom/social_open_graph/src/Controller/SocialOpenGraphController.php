@@ -7,13 +7,13 @@ use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\ReplaceCommand;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Flood\FloodInterface;
-use Drupal\Core\Link;
 use Drupal\Core\Site\Settings;
-use Drupal\Core\Url;
-use Drupal\social_open_graph\UrlEmbed;
+use Drupal\social_open_graph\Service\EmbedGeneratorService;
+use Drupal\social_open_graph\SocialOpenGraphConstants;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -22,11 +22,11 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 class SocialOpenGraphController extends ControllerBase {
 
   /**
-   * Url Embed services.
+   * The embed generator service.
    *
-   * @var \Drupal\social_open_graph\UrlEmbed
+   * @var \Drupal\social_open_graph\Service\EmbedGeneratorService
    */
-  protected UrlEmbed $urlEmbed;
+  protected EmbedGeneratorService $embedGenerator;
 
   /**
    * The flood service.
@@ -38,13 +38,13 @@ class SocialOpenGraphController extends ControllerBase {
   /**
    * The EmbedController constructor.
    *
-   * @param \Drupal\social_open_graph\UrlEmbed $url_embed
-   *   The url embed services.
+   * @param \Drupal\social_open_graph\Service\EmbedGeneratorService $embed_generator
+   *   The embed generator service.
    * @param \Drupal\Core\Flood\FloodInterface $flood
    *   The flood service.
    */
-  public function __construct(UrlEmbed $url_embed, FloodInterface $flood) {
-    $this->urlEmbed = $url_embed;
+  public function __construct(EmbedGeneratorService $embed_generator, FloodInterface $flood) {
+    $this->embedGenerator = $embed_generator;
     $this->flood = $flood;
   }
 
@@ -58,7 +58,7 @@ class SocialOpenGraphController extends ControllerBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('social_open_graph'),
+      $container->get('social_open_graph.embed_generator_service'),
       $container->get('flood')
     );
   }
@@ -85,45 +85,106 @@ class SocialOpenGraphController extends ControllerBase {
    *   The Ajax response.
    */
   public function generateEmbed(Request $request) {
-    // Get the requested URL of content to embed.
-    $url = $request->query->get('url');
-    // Get unique identifier for the button which was clicked.
-    $uuid = $request->query->get('uuid');
+    // Validate request parameters.
+    $url = $this->validateAndSanitizeUrl($request->query->get('url'));
+    $uuid = $this->validateUuid($request->query->get('uuid'));
 
-    // Validate that both required parameters are present and valid.
-    if ($url === NULL || $uuid === NULL || !Uuid::isValid($uuid)) {
-      throw new NotFoundHttpException('Invalid or missing URL/UUID parameters.');
+    // Check flood protection.
+    $this->checkFloodProtection();
+
+    // Generate embed content.
+    $embed = $this->embedGenerator->generateEmbedContent($url, $uuid);
+
+    // Build and return AJAX response.
+    return $this->buildAjaxResponse($uuid, $embed['content']);
+  }
+
+  /**
+   * Validates and sanitizes a URL parameter.
+   *
+   * @param string|null $url
+   *   The URL to validate.
+   *
+   * @return string
+   *   The validated and sanitized URL.
+   *
+   * @throws \Symfony\Component\HttpKernel\Exception\BadRequestHttpException
+   *   If the URL is invalid.
+   */
+  protected function validateAndSanitizeUrl(?string $url): string {
+    if ($url === NULL || trim($url) === '') {
+      throw new BadRequestHttpException('URL parameter is required.');
     }
 
-    // The maximum number of times each user can do this event per time window.
-    $retries = Settings::get('social_open_graph_flood_retries', 50);
-    // Number of seconds in the time window for embed.
-    $timeWindow = Settings::get('social_open_graph_flood_time_window', 300);
+    $url = trim($url);
 
-    // Only proceed if this is not a malicous request.
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+      throw new BadRequestHttpException('Invalid URL format.');
+    }
+
+    $parsed = parse_url($url);
+    if (!isset($parsed['scheme']) || !in_array($parsed['scheme'], SocialOpenGraphConstants::ALLOWED_URL_SCHEMES)) {
+      throw new BadRequestHttpException('Only HTTP/HTTPS URLs are allowed.');
+    }
+
+    if (strlen($url) > SocialOpenGraphConstants::URL_MAX_LENGTH) {
+      throw new BadRequestHttpException('URL exceeds maximum length.');
+    }
+
+    return $url;
+  }
+
+  /**
+   * Validates a UUID parameter.
+   *
+   * @param string|null $uuid
+   *   The UUID to validate.
+   *
+   * @return string
+   *   The validated UUID.
+   *
+   * @throws \Symfony\Component\HttpKernel\Exception\BadRequestHttpException
+   *   If the UUID is invalid.
+   */
+  protected function validateUuid(?string $uuid): string {
+    if ($uuid === NULL || !Uuid::isValid($uuid)) {
+      throw new BadRequestHttpException('Invalid or missing UUID parameter.');
+    }
+
+    return $uuid;
+  }
+
+  /**
+   * Checks flood protection and registers the event.
+   *
+   * @throws \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException
+   *   If flood protection is triggered.
+   */
+  protected function checkFloodProtection(): void {
+    $retries = Settings::get('social_open_graph_flood_retries', SocialOpenGraphConstants::FLOOD_RETRIES_DEFAULT);
+    $timeWindow = Settings::get('social_open_graph_flood_time_window', SocialOpenGraphConstants::FLOOD_TIME_WINDOW_DEFAULT);
+
     if (!$this->flood->isAllowed('social_open_graph.generate_embed_flood_event', $retries, $timeWindow)) {
-      throw new AccessDeniedHttpException();
+      throw new AccessDeniedHttpException('Too many requests. Please try again later.');
     }
-    // Register the flood event in system.
+
     $this->flood->register('social_open_graph.generate_embed_flood_event', $timeWindow);
-    // Use uuid to set the selector to the specific div we need to replace.
+  }
+
+  /**
+   * Builds an AJAX response with the embed content.
+   *
+   * @param string $uuid
+   *   The unique identifier for the embed.
+   * @param string $content
+   *   The embed content HTML.
+   *
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The AJAX response.
+   */
+  protected function buildAjaxResponse(string $uuid, string $content): AjaxResponse {
     $selector = "#social-open-graph-iframe-$uuid";
-    // If the content is embeddable then return the iFrame.
-    $info = $this->urlEmbed->getUrlInfo($url);
-    if ($info && !empty($iframe = $info['code'])) {
-      $provider = strtolower($info['providerName']);
-      $content = "<div id='social-open-graph-iframe-$uuid' class='social-open-graph-iframe-$provider'><p>$iframe</p></div>";
-    }
-    else {
-      // Else return the link itself.
-      $content = Link::fromTextAndUrl($url, Url::fromUri($url))->toString();
-    }
-
-    // Let's prepare the response.
     $response = new AjaxResponse();
-
-    // And return the response which will replace the button
-    // with embeddable content.
     $response->addCommand(new ReplaceCommand($selector, $content));
     return $response;
   }

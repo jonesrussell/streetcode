@@ -7,6 +7,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ConfigFactoryOverrideInterface;
 use Drupal\Core\Config\StorageInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\State\StateInterface;
 
 /**
  * Configuration overrides for Social Embed module.
@@ -30,16 +31,26 @@ class SocialOpenGraphConfigOverride implements ConfigFactoryOverrideInterface {
   protected $configFactory;
 
   /**
+   * The state service.
+   *
+   * @var \Drupal\Core\State\StateInterface
+   */
+  protected StateInterface $state;
+
+  /**
    * Constructs the configuration override.
    *
    * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
    *   The module handler.
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The configuration factory.
+   * @param \Drupal\Core\State\StateInterface $state
+   *   The state service.
    */
-  public function __construct(ModuleHandlerInterface $module_handler, ConfigFactoryInterface $config_factory) {
+  public function __construct(ModuleHandlerInterface $module_handler, ConfigFactoryInterface $config_factory, StateInterface $state) {
     $this->moduleHandler = $module_handler;
     $this->configFactory = $config_factory;
+    $this->state = $state;
   }
 
   /**
@@ -60,14 +71,9 @@ class SocialOpenGraphConfigOverride implements ConfigFactoryOverrideInterface {
       return $overrides;
     }
 
-    // Check if we're in an uninstall validation context by checking the
-    // backtrace for FilterUninstallValidator.
-    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
-    foreach ($backtrace as $frame) {
-      if (isset($frame['class']) && strpos($frame['class'], 'FilterUninstallValidator') !== FALSE) {
-        // We're being called during uninstall validation, don't add overrides.
-        return $overrides;
-      }
+    // Check if we're in an uninstall context using state flag.
+    if ($this->state->get('social_open_graph.uninstalling', FALSE)) {
+      return $overrides;
     }
 
     // Check if the filter plugin class exists. If it doesn't, we're likely

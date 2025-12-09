@@ -2,7 +2,7 @@ services:
 
   social_open_graph.overrider:
     class: \Drupal\social_open_graph\SocialOpenGraphConfigOverride
-    arguments: ['@module_handler', '@config.factory']
+    arguments: ['@module_handler', '@config.factory', '@state']
     tags:
       - {name: config.factory.override, priority: 49}
 
@@ -13,3 +13,11 @@ services:
   social_open_graph:
     class: Drupal\social_open_graph\UrlEmbed
     arguments: ['@cache.data', '@datetime.time', '@?config.factory', ['config']]
+
+  social_open_graph.image_download_service:
+    class: \Drupal\social_open_graph\Service\ImageDownloadService
+    arguments: ['@http_client', '@file_system', '@logger.channel.social_open_graph']
+
+  social_open_graph.embed_generator_service:
+    class: \Drupal\social_open_graph\Service\EmbedGeneratorService
+    arguments: ['@social_open_graph']

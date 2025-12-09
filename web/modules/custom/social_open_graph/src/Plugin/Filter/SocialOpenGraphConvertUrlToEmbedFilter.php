@@ -4,10 +4,11 @@ namespace Drupal\social_open_graph\Plugin\Filter;
 
 use Drupal\Component\Utility\Html;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\filter\FilterProcessResult;
 use Drupal\social_open_graph\Service\SocialOpenGraphHelper;
+use Drupal\social_open_graph\SocialOpenGraphConstants;
 use Drupal\url_embed\Plugin\Filter\ConvertUrlToEmbedFilter;
+use Drupal\url_embed\UrlEmbedInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -23,7 +24,14 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   },
  * )
  */
-class SocialOpenGraphConvertUrlToEmbedFilter extends ConvertUrlToEmbedFilter implements ContainerFactoryPluginInterface {
+class SocialOpenGraphConvertUrlToEmbedFilter extends ConvertUrlToEmbedFilter {
+
+  /**
+   * The URL embed service.
+   *
+   * @var \Drupal\url_embed\UrlEmbedInterface
+   */
+  protected UrlEmbedInterface $urlEmbed;
 
   /**
    * The social embed helper services.
@@ -41,11 +49,14 @@ class SocialOpenGraphConvertUrlToEmbedFilter extends ConvertUrlToEmbedFilter imp
    *   The plugin ID for the plugin instance.
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
+   * @param \Drupal\url_embed\UrlEmbedInterface $url_embed
+   *   The URL embed service.
    * @param \Drupal\social_open_graph\Service\SocialOpenGraphHelper $embed_helper
    *   The social embed helper class object.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, SocialOpenGraphHelper $embed_helper) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, UrlEmbedInterface $url_embed, SocialOpenGraphHelper $embed_helper) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
+    $this->urlEmbed = $url_embed;
     $this->embedHelper = $embed_helper;
   }
 
@@ -57,6 +68,7 @@ class SocialOpenGraphConvertUrlToEmbedFilter extends ConvertUrlToEmbedFilter imp
       $configuration,
       $plugin_id,
       $plugin_definition,
+      $container->get('social_open_graph'),
       $container->get('social_open_graph.helper_service')
     );
   }
@@ -72,9 +84,9 @@ class SocialOpenGraphConvertUrlToEmbedFilter extends ConvertUrlToEmbedFilter imp
    * {@inheritdoc}
    */
   public function process($text, $langcode) {
-    $result = new FilterProcessResult(static::convertUrls($text, $this->settings['url_prefix']));
+    $result = new FilterProcessResult($this->convertUrls($text, $this->settings['url_prefix']));
     // Add the required dependencies and cache tags.
-    return $this->embedHelper->addDependencies($result, 'social_open_graph:filter.convert_url');
+    return $this->addFilterDependencies($result, 'social_open_graph:filter.convert_url');
   }
 
   /**
@@ -93,7 +105,7 @@ class SocialOpenGraphConvertUrlToEmbedFilter extends ConvertUrlToEmbedFilter imp
    * @return mixed
    *   Processed text.
    */
-  public static function convertUrls($text, $url_prefix = '') {
+  protected function convertUrls($text, $url_prefix = '') {
     // Check if consent is enabled - if not, use parent's convertUrls.
     $config = \Drupal::config('social_open_graph.settings');
     if (!$config->get('settings')) {
@@ -139,19 +151,20 @@ class SocialOpenGraphConvertUrlToEmbedFilter extends ConvertUrlToEmbedFilter imp
     $chunk_type = 'text';
     $open_tag = '';
 
+    // Capture $this for use in closure.
+    $url_embed = $this->urlEmbed;
+
     for ($i = 0; $i < count($chunks); $i++) {
       if ($chunk_type == 'text') {
         // Only process this text if there are no unclosed $ignore_tags.
         if ($open_tag == '') {
           $chunks[$i] = preg_replace_callback(
             $pattern,
-            function ($match) {
+            function ($match) use ($url_embed) {
               try {
-                // Use static service call (unavoidable in static method).
-                $url_embed = \Drupal::service('social_open_graph');
                 $info = $url_embed->getUrlInfo(Html::decodeEntities($match[1]));
                 if ($info) {
-                  return '<drupal-url data-embed-url="' . $match[1] . '"></drupal-url>';
+                  return '<' . SocialOpenGraphConstants::EMBED_TAG . ' ' . SocialOpenGraphConstants::EMBED_ATTRIBUTE . '="' . $match[1] . '"></' . SocialOpenGraphConstants::EMBED_TAG . '>';
                 }
                 else {
                   return $match[1];
@@ -191,6 +204,21 @@ class SocialOpenGraphConvertUrlToEmbedFilter extends ConvertUrlToEmbedFilter imp
     // Revert to the original comment contents.
     _filter_url_escape_comments([], FALSE);
     return preg_replace_callback('`<!--(.*?)-->`', '_filter_url_escape_comments', $text);
+  }
+
+  /**
+   * Adds filter dependencies to the result.
+   *
+   * @param \Drupal\filter\FilterProcessResult $result
+   *   The filter process result.
+   * @param string $tag
+   *   The cache tag to add.
+   *
+   * @return \Drupal\filter\FilterProcessResult
+   *   The filter process result with dependencies added.
+   */
+  protected function addFilterDependencies(FilterProcessResult $result, string $tag): FilterProcessResult {
+    return $this->embedHelper->addDependencies($result, $tag);
   }
 
 }
