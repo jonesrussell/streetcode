@@ -1,19 +1,18 @@
-uuid: ab384fb3-f754-4060-bf2d-1a8f376874a3
+uuid: 2e62b0fb-8681-4ba6-9c0f-545464ff4d91
 langcode: en
 status: true
 dependencies:
   module:
-    - group
     - node
-id: node.field_group
-field_name: field_group
+id: node.field_category
+field_name: field_category
 entity_type: node
-type: entity_reference
+type: string_long
 settings:
-  target_type: group
+  case_sensitive: false
 module: core
 locked: false
-cardinality: -1
+cardinality: 1
 translatable: true
 indexes: {  }
 persist_with_no_fields: false

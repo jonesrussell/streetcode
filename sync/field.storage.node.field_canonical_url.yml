@@ -1,12 +1,12 @@
-uuid: 9257b57c-9c65-4e30-9aca-64aa5ff18809
+uuid: e2ad2bad-00a6-41c2-b6df-3240c0ea7eab
 langcode: en
 status: true
 dependencies:
   module:
     - link
     - node
-id: node.field_url
-field_name: field_url
+id: node.field_canonical_url
+field_name: field_canonical_url
 entity_type: node
 type: link
 settings: {  }
