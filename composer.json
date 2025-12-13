@@ -25,6 +25,7 @@
         "drupal/group": "^3.2",
         "drupal/jsonapi_extras": "^3.25",
         "drupal/mcp": "^1.0@alpha",
+        "drupal/metatag": "^2.2",
         "drupal/openapi": "^2.2",
         "drupal/openapi_jsonapi": "^3.0",
         "drupal/openapi_ui": "^1.0@RC",
